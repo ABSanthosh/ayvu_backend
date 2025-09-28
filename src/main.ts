@@ -3,6 +3,7 @@ import { downloadArxivSource, extractTarball } from "./process_arxiv.ts";
 import { compileLatex } from "./process_latex.ts";
 import { cleanUpHTMLGeneration } from "./postprocessing/html.ts";
 import { postprocess } from "./postprocessing/index.ts";
+import { uploadToGoogleDrive } from "./process_drive.ts";
 
 if (import.meta.main) {
   // Remove everything in the tmp directory
@@ -27,14 +28,35 @@ if (import.meta.main) {
       return;
     }
 
+    // Get tokens from URL parameters
+    const refresh_token = ctx.request.url.searchParams.get("refresh_token");
+    const access_token = ctx.request.url.searchParams.get("access_token");
+
+    if (!access_token || !refresh_token) {
+      ctx.response.status = 400;
+      ctx.response.body = {
+        error: "Missing 'access_token' or 'refresh_token' query parameters",
+      };
+      return;
+    }
+
     try {
       await downloadArxivSource(arxivId);
       await extractTarball(arxivId);
       await compileLatex(arxivId);
-      await postprocess(arxivId);
+      postprocess(arxivId);
       await cleanUpHTMLGeneration(arxivId);
 
-      ctx.response.body = { message: "Extraction successful" };
+      // Upload to Google Drive
+      const folderId = await uploadToGoogleDrive(arxivId, {
+        accessToken: access_token,
+        refreshToken: refresh_token,
+      });
+
+      ctx.response.body = {
+        message: "Extraction and upload successful",
+        folderId: folderId,
+      };
     } catch (error) {
       ctx.response.status = 500;
       ctx.response.body = {

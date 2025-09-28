@@ -1,10 +1,74 @@
 async function findTexFile(latexDir: string): Promise<string | null> {
-  for await (const dirEntry of Deno.readDir(latexDir)) {
-    if (dirEntry.isFile && dirEntry.name.endsWith(".tex")) {
-      return `${latexDir}/${dirEntry.name}`;
+  try {
+    // Check if directory exists and is accessible
+    const dirStat = await Deno.stat(latexDir).catch(() => null);
+    if (!dirStat || !dirStat.isDirectory) {
+      console.warn(`LaTeX directory not found or not accessible: ${latexDir}`);
+      return null;
     }
+
+    const texFiles: string[] = [];
+    const priorityPatterns = [
+      /^main\.tex$/i,
+      /^paper\.tex$/i,
+      /^manuscript\.tex$/i,
+      /^article\.tex$/i,
+      /^thesis\.tex$/i,
+      /^document\.tex$/i
+    ];
+
+    // Collect all .tex files (case-insensitive)
+    for await (const dirEntry of Deno.readDir(latexDir)) {
+      if (dirEntry.isFile && /\.tex$/i.test(dirEntry.name)) {
+        texFiles.push(dirEntry.name);
+      }
+    }
+
+    if (texFiles.length === 0) {
+      console.warn(`No .tex files found in directory: ${latexDir}`);
+      return null;
+    }
+
+    // First, try to find files matching priority patterns
+    for (const pattern of priorityPatterns) {
+      const matchingFile = texFiles.find(file => pattern.test(file));
+      if (matchingFile) {
+        console.log(`Found priority .tex file: ${matchingFile}`);
+        return `${latexDir}/${matchingFile}`;
+      }
+    }
+
+    // If no priority files found, look for files containing \documentclass
+    for (const texFile of texFiles) {
+      try {
+        const filePath = `${latexDir}/${texFile}`;
+        const content = await Deno.readTextFile(filePath);
+        
+        // Look for \documentclass in the first few lines (typically should be near the top)
+        const lines = content.split('\n').slice(0, 50);
+        const hasDocumentClass = lines.some(line => 
+          /\\documentclass\s*(\[.*?\])?\s*\{/.test(line.trim())
+        );
+        
+        if (hasDocumentClass) {
+          console.log(`Found .tex file with \\documentclass: ${texFile}`);
+          return filePath;
+        }
+      } catch (error) {
+        console.warn(`Could not read .tex file ${texFile}: ${error}`);
+        continue;
+      }
+    }
+
+    // If still no main file found, return the first .tex file
+    const firstTexFile = texFiles[0];
+    console.log(`Using first available .tex file: ${firstTexFile} (found ${texFiles.length} total)`);
+    return `${latexDir}/${firstTexFile}`;
+
+  } catch (error) {
+    console.error(`Error while searching for .tex files in ${latexDir}:`, error);
+    return null;
   }
-  return null;
 }
 
 export async function compileLatex(arxivId: string): Promise<void> {
@@ -15,6 +79,7 @@ export async function compileLatex(arxivId: string): Promise<void> {
 
   // Deno.chdir(`./tmp/${arxivId}/latex`);
   const texFile = await findTexFile(latexDir);
+  console.log(texFile)
   if (!texFile) {
     throw new Error(`No .tex file found for arXiv ID ${arxivId}`);
   }
