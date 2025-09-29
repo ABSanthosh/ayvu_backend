@@ -7,12 +7,12 @@ import { uploadToGoogleDrive } from "./process_drive.ts";
 
 if (import.meta.main) {
   // Remove everything in the tmp directory
-  try {
-    await Deno.remove("./tmp", { recursive: true });
-  } catch {
-    // ignore
-  }
-  await Deno.mkdir("./tmp");
+  // try {
+  //   await Deno.remove("./tmp", { recursive: true });
+  // } catch {
+  //   // ignore
+  // }
+  // await Deno.mkdir("./tmp");
 
   const router = new Router();
 
@@ -45,18 +45,18 @@ if (import.meta.main) {
       await extractTarball(arxivId);
       await compileLatex(arxivId);
       postprocess(arxivId);
-      await cleanUpHTMLGeneration(arxivId);
+      // await cleanUpHTMLGeneration(arxivId);
 
       // Upload to Google Drive
-      const folderId = await uploadToGoogleDrive(arxivId, {
-        accessToken: access_token,
-        refreshToken: refresh_token,
-      });
+      // const folderId = await uploadToGoogleDrive(arxivId, {
+      //   accessToken: access_token,
+      //   refreshToken: refresh_token,
+      // });
 
-      ctx.response.body = {
-        message: "Extraction and upload successful",
-        folderId: folderId,
-      };
+      // ctx.response.body = {
+      //   message: "Extraction and upload successful",
+      //   folderId: folderId,
+      // };
     } catch (error) {
       ctx.response.status = 500;
       ctx.response.body = {

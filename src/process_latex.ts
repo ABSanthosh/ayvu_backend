@@ -1,3 +1,65 @@
+async function findStyFiles(latexDir: string): Promise<string[]> {
+  const styFiles: string[] = [];
+
+  try {
+    // Check if directory exists and is accessible
+    const dirStat = await Deno.stat(latexDir).catch(() => null);
+    if (!dirStat || !dirStat.isDirectory) {
+      console.warn(`LaTeX directory not found or not accessible: ${latexDir}`);
+      return styFiles;
+    }
+
+    // Collect all .sty files (case-insensitive)
+    for await (const dirEntry of Deno.readDir(latexDir)) {
+      if (dirEntry.isFile && /\.sty$/i.test(dirEntry.name)) {
+        const fullPath = `${latexDir}/${dirEntry.name}`;
+        styFiles.push(fullPath);
+        console.log(`Found .sty file: ${dirEntry.name}`);
+      }
+    }
+
+    console.log(`Found ${styFiles.length} .sty files in ${latexDir}`);
+    return styFiles;
+  } catch (error) {
+    console.error(
+      `Error while searching for .sty files in ${latexDir}:`,
+      error
+    );
+    return styFiles;
+  }
+}
+
+async function findLtxmlFiles(latexDir: string): Promise<string[]> {
+  const ltxmlFiles: string[] = [];
+
+  try {
+    // Check if directory exists and is accessible
+    const dirStat = await Deno.stat(latexDir).catch(() => null);
+    if (!dirStat || !dirStat.isDirectory) {
+      console.warn(`LaTeX directory not found or not accessible: ${latexDir}`);
+      return ltxmlFiles;
+    }
+
+    // Collect all .ltxml files (case-insensitive)
+    for await (const dirEntry of Deno.readDir(latexDir)) {
+      if (dirEntry.isFile && /\.ltxml$/i.test(dirEntry.name)) {
+        const fullPath = `${latexDir}/${dirEntry.name}`;
+        ltxmlFiles.push(fullPath);
+        console.log(`Found .ltxml file: ${dirEntry.name}`);
+      }
+    }
+
+    console.log(`Found ${ltxmlFiles.length} .ltxml files in ${latexDir}`);
+    return ltxmlFiles;
+  } catch (error) {
+    console.error(
+      `Error while searching for .ltxml files in ${latexDir}:`,
+      error
+    );
+    return ltxmlFiles;
+  }
+}
+
 async function findTexFile(latexDir: string): Promise<string | null> {
   try {
     // Check if directory exists and is accessible
@@ -14,7 +76,7 @@ async function findTexFile(latexDir: string): Promise<string | null> {
       /^manuscript\.tex$/i,
       /^article\.tex$/i,
       /^thesis\.tex$/i,
-      /^document\.tex$/i
+      /^document\.tex$/i,
     ];
 
     // Collect all .tex files (case-insensitive)
@@ -31,7 +93,7 @@ async function findTexFile(latexDir: string): Promise<string | null> {
 
     // First, try to find files matching priority patterns
     for (const pattern of priorityPatterns) {
-      const matchingFile = texFiles.find(file => pattern.test(file));
+      const matchingFile = texFiles.find((file) => pattern.test(file));
       if (matchingFile) {
         console.log(`Found priority .tex file: ${matchingFile}`);
         return `${latexDir}/${matchingFile}`;
@@ -43,13 +105,13 @@ async function findTexFile(latexDir: string): Promise<string | null> {
       try {
         const filePath = `${latexDir}/${texFile}`;
         const content = await Deno.readTextFile(filePath);
-        
+
         // Look for \documentclass in the first few lines (typically should be near the top)
-        const lines = content.split('\n').slice(0, 50);
-        const hasDocumentClass = lines.some(line => 
+        const lines = content.split("\n").slice(0, 50);
+        const hasDocumentClass = lines.some((line) =>
           /\\documentclass\s*(\[.*?\])?\s*\{/.test(line.trim())
         );
-        
+
         if (hasDocumentClass) {
           console.log(`Found .tex file with \\documentclass: ${texFile}`);
           return filePath;
@@ -62,11 +124,15 @@ async function findTexFile(latexDir: string): Promise<string | null> {
 
     // If still no main file found, return the first .tex file
     const firstTexFile = texFiles[0];
-    console.log(`Using first available .tex file: ${firstTexFile} (found ${texFiles.length} total)`);
+    console.log(
+      `Using first available .tex file: ${firstTexFile} (found ${texFiles.length} total)`
+    );
     return `${latexDir}/${firstTexFile}`;
-
   } catch (error) {
-    console.error(`Error while searching for .tex files in ${latexDir}:`, error);
+    console.error(
+      `Error while searching for .tex files in ${latexDir}:`,
+      error
+    );
     return null;
   }
 }
@@ -79,10 +145,14 @@ export async function compileLatex(arxivId: string): Promise<void> {
 
   // Deno.chdir(`./tmp/${arxivId}/latex`);
   const texFile = await findTexFile(latexDir);
-  console.log(texFile)
+  console.log(texFile);
   if (!texFile) {
     throw new Error(`No .tex file found for arXiv ID ${arxivId}`);
   }
+
+  // Find any .sty files in the latex directory
+  const styFiles = await findStyFiles(latexDir);
+  const ltxmlFiles = await findLtxmlFiles(latexDir);
 
   Deno.chdir(htmlPath);
 
@@ -103,6 +173,9 @@ export async function compileLatex(arxivId: string): Promise<void> {
     "/home/santhosh/Desktop/Projects/TypeScript/2025/1_Ayvu/latexml/src/latexml/packages",
     "--preload",
     "/home/santhosh/Desktop/Projects/TypeScript/2025/1_Ayvu/latexml/src/latexml/engrafo.ltxml",
+    "--includestyles",
+    // ...styFiles.flatMap((styFile) => ["--includestyles", styFile]),
+    ...ltxmlFiles.flatMap((ltxmlFile) => ["--preload", ltxmlFile]),
     // "--preload", "/usr/share/perl5/LaTeXML/Package/hyperref.sty.ltxml",
     "--xsltparameter",
     "SIMPLIFY_HTML:true",
@@ -127,5 +200,5 @@ export async function compileLatex(arxivId: string): Promise<void> {
 
   Deno.chdir(rootPath);
   // Clean up the latex directory to save space
-  await Deno.remove(`./tmp/${arxivId}/latex`, { recursive: true });
+  // await Deno.remove(`./tmp/${arxivId}/latex`, { recursive: true });
 }
