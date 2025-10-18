@@ -10,6 +10,7 @@
     "@std/fs": "jsr:@std/fs@^1.0.19",
     "@std/path": "jsr:@std/path@^1.1.2",
     "@std/tar": "jsr:@std/tar@^0.1.8",
+    "googleapis": "npm:googleapis@^164.0.0",
     "html-minifier-next": "npm:html-minifier-next@^2.1.4",
     "jsdom": "npm:jsdom@^27.0.0",
     "linkify-urls": "npm:linkify-urls@^5.1.0",

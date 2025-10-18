@@ -8,7 +8,10 @@ const embeddingWorker = new Worker(
   }
 );
 
-export function generateWeights(arxivId: string, numChunks = 2048): void {
+export async function generateWeights(
+  arxivId: string,
+  numChunks = 2048
+): Promise<void> {
   const html = Deno.readTextFileSync(`./tmp/${arxivId}/html/paper.html`);
   const htmlChunks: Chunk[] = new Chunker(html, numChunks).getChunks();
   embeddingWorker.postMessage({
@@ -20,16 +23,16 @@ export function generateWeights(arxivId: string, numChunks = 2048): void {
     },
   } as EmbeddingMessages);
   const startTime = Date.now();
+
+  let resolver: ((value: unknown) => void) | undefined = undefined;
+  const workerPromise = new Promise((resolve) => (resolver = resolve));
+
   embeddingWorker.onmessage = async (event) => {
     const message = event.data as EmbeddingMessages;
     switch (message.command) {
       case "error":
-        // console.error("Embedding Worker Error:", message.payload);
         break;
       case "progress":
-        // console.log(
-        //   `Embedding Progress [${message.payload.requestID}]: ${JSON.stringify(message.payload.progress)}%`
-        // );
         break;
       case "finishExtractEmbedding":
         if (message.payload.requestID === arxivId) {
@@ -41,7 +44,11 @@ export function generateWeights(arxivId: string, numChunks = 2048): void {
           return message.payload.embeddings.flat();
         }
     }
+
+    embeddingWorker.onmessage = (_) => {};
+    resolver?.(message);
   };
 
+  await workerPromise;
   console.log(`It took ${Date.now() - startTime} ms to generate embeddings.`);
 }

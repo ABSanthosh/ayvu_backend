@@ -3,7 +3,7 @@ import { downloadArxivSource, extractTarball } from "./process_arxiv.ts";
 import { compileLatex } from "./process_latex.ts";
 import { cleanUpHTMLGeneration } from "./postprocessing/html.ts";
 import { postprocess } from "./postprocessing/index.ts";
-import { uploadToGoogleDrive } from "./process_drive.ts";
+import MakeDriveGreatAgain, { uploadToGoogleDrive } from "./process_drive.ts";
 import { generateWeights } from "./embedding/index.ts";
 
 if (import.meta.main) {
@@ -42,21 +42,21 @@ if (import.meta.main) {
     }
 
     try {
-      await downloadArxivSource(arxivId);
-      await extractTarball(arxivId);
-      await compileLatex(arxivId);
-      postprocess(arxivId);
-      await cleanUpHTMLGeneration(arxivId);
-      generateWeights(arxivId);
+      // await downloadArxivSource(arxivId);
+      // await extractTarball(arxivId);
+      // await compileLatex(arxivId);
+      // postprocess(arxivId);
+      // await cleanUpHTMLGeneration(arxivId);
+      // generateWeights(arxivId);
 
-      const folderId = await uploadToGoogleDrive(arxivId, {
+      const drive = new MakeDriveGreatAgain({
         accessToken: access_token,
         refreshToken: refresh_token,
       });
+      await drive.uploadPaper(arxivId);
 
       ctx.response.body = {
         message: "Extraction and upload successful",
-        folderId: folderId,
       };
     } catch (error) {
       ctx.response.status = 500;
