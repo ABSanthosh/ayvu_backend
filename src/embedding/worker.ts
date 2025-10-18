@@ -130,7 +130,7 @@ class Embeddings {
     }
   }
 
-  public async addTaskToQueue(task: () => Promise<void>): Promise<void> {
+  public addTaskToQueue(task: () => Promise<void>): void {
     this.taskQueue.push(task);
   }
 

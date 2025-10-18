@@ -47,7 +47,7 @@ if (import.meta.main) {
       await compileLatex(arxivId);
       postprocess(arxivId);
       await cleanUpHTMLGeneration(arxivId);
-      await generateWeights(arxivId);
+      generateWeights(arxivId);
 
       const folderId = await uploadToGoogleDrive(arxivId, {
         accessToken: access_token,

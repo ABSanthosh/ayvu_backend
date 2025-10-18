@@ -8,10 +8,7 @@ const embeddingWorker = new Worker(
   }
 );
 
-export async function generateWeights(
-  arxivId: string,
-  numChunks = 2048
-): Promise<void> {
+export function generateWeights(arxivId: string, numChunks = 2048): void {
   const html = Deno.readTextFileSync(`./tmp/${arxivId}/html/paper.html`);
   const htmlChunks: Chunk[] = new Chunker(html, numChunks).getChunks();
   embeddingWorker.postMessage({

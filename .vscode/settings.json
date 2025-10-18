@@ -1,6 +1,12 @@
 {
   "cSpell.words": [
-    "Chunker"
+    "Chunker",
+    "dtype",
+    "embeddinggemma",
+    "huggingface",
+    "ONNX",
+    "pretrained",
+    "tolist"
   ],
   "deno.enable": true
 }
