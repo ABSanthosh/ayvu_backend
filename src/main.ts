@@ -3,7 +3,7 @@ import { downloadArxivSource, extractTarball } from "./process_arxiv.ts";
 import { compileLatex } from "./process_latex.ts";
 import { cleanUpHTMLGeneration } from "./postprocessing/html.ts";
 import { postprocess } from "./postprocessing/index.ts";
-import MakeDriveGreatAgain, { uploadToGoogleDrive } from "./process_drive.ts";
+import MakeDriveGreatAgain from "./process_drive.ts";
 import { generateWeights } from "./embedding/index.ts";
 
 if (import.meta.main) {
