@@ -4,6 +4,7 @@ import { compileLatex } from "./process_latex.ts";
 import { cleanUpHTMLGeneration } from "./postprocessing/html.ts";
 import { postprocess } from "./postprocessing/index.ts";
 import { uploadToGoogleDrive } from "./process_drive.ts";
+import { generateWeights } from "./embedding/index.ts";
 
 if (import.meta.main) {
   // Remove everything in the tmp directory
@@ -45,18 +46,18 @@ if (import.meta.main) {
       await extractTarball(arxivId);
       await compileLatex(arxivId);
       postprocess(arxivId);
-      // await cleanUpHTMLGeneration(arxivId);
+      await cleanUpHTMLGeneration(arxivId);
+      await generateWeights(arxivId);
 
-      // Upload to Google Drive
-      // const folderId = await uploadToGoogleDrive(arxivId, {
-      //   accessToken: access_token,
-      //   refreshToken: refresh_token,
-      // });
+      const folderId = await uploadToGoogleDrive(arxivId, {
+        accessToken: access_token,
+        refreshToken: refresh_token,
+      });
 
-      // ctx.response.body = {
-      //   message: "Extraction and upload successful",
-      //   folderId: folderId,
-      // };
+      ctx.response.body = {
+        message: "Extraction and upload successful",
+        folderId: folderId,
+      };
     } catch (error) {
       ctx.response.status = 500;
       ctx.response.body = {
