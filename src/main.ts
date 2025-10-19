@@ -75,6 +75,7 @@ if (import.meta.main) {
           // Send completion message and close the stream
           controller.enqueue(new TextEncoder().encode("data: {\"type\":\"complete\",\"message\":\"Processing completed successfully\"}\n\n"));
           controller.close();
+          console.log(`Processing of ${arxivId} completed successfully.`);
         } catch (error) {
           // Send error message and close the stream
           controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({

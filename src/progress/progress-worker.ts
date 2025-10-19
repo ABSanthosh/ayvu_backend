@@ -72,15 +72,15 @@ export class ProgressWorker {
     // Register the controller
     session.clients.set(clientId, controller);
 
-    // Initialize task if it doesn't exist
-    if (!session.tasks.has(arxivId)) {
-      const task = this.initializeTask(arxivId);
-      task.initiatingClient = controller; // Track the initiating client
-      session.tasks.set(arxivId, task);
-    }
+    // Always initialize a fresh task for new requests
+    // This ensures that subsequent requests get a clean slate
+    const task = this.initializeTask(arxivId);
+    task.initiatingClient = controller; // Track the initiating client
+    session.tasks.set(arxivId, task);
+
+    console.log(`Registered client ${clientId} for task ${arxivId}`);
 
     // Send initial progress state
-    const task = session.tasks.get(arxivId)!;
     this.sendUpdate(controller, {
       type: "progress",
       data: {
@@ -97,16 +97,24 @@ export class ProgressWorker {
   postProgress(update: ProgressUpdate) {
     const { userHash, arxivId, step, progress, clientId } = update;
     const session = this.sessions.get(userHash);
-    if (!session) return;
+    if (!session) {
+      console.log(`No session found for userHash: ${userHash}`);
+      return;
+    }
 
     const task = session.tasks.get(arxivId);
-    if (!task) return;
+    if (!task) {
+      console.log(`No task found for arxivId: ${arxivId} in session: ${userHash}`);
+      return;
+    }
 
     // Update step progress
     task.steps[step] = {
       ...task.steps[step],
       ...progress,
     };
+
+    console.log(`Updated step ${step} for ${arxivId}: ${progress.status}`);
 
     // Update overall status
     const allSteps = Object.values(task.steps);
@@ -124,39 +132,57 @@ export class ProgressWorker {
     const controller = clientId
       ? session.clients.get(clientId)
       : task.initiatingClient;
+    
     if (controller) {
-      this.sendUpdate(controller, {
-        type:
-          task.overallStatus === ProcessingStatus.COMPLETED
-            ? "complete"
-            : task.overallStatus === ProcessingStatus.FAILED
-            ? "error"
-            : "progress",
-        data: {
-          arxivId,
-          step,
-          progress: task.steps[step],
-          overallStatus: task.overallStatus,
-        },
-      });
-    }
-
-    // Clean up if task is complete or failed
-    if (
-      task.overallStatus === ProcessingStatus.COMPLETED ||
-      task.overallStatus === ProcessingStatus.FAILED
-    ) {
-      session.tasks.delete(arxivId);
-      if (controller) {
+      try {
+        this.sendUpdate(controller, {
+          type:
+            task.overallStatus === ProcessingStatus.COMPLETED
+              ? "complete"
+              : task.overallStatus === ProcessingStatus.FAILED
+              ? "error"
+              : "progress",
+          data: {
+            arxivId,
+            step,
+            progress: task.steps[step],
+            overallStatus: task.overallStatus,
+          },
+        });
+      } catch (error) {
+        console.error(`Failed to send progress update: ${error}`);
+        // Controller might be closed, remove it from clients
         if (clientId) {
           session.clients.delete(clientId);
         }
-        controller.close();
       }
-      // Remove session if no tasks or clients remain
-      if (session.tasks.size === 0 && session.clients.size === 0) {
-        this.sessions.delete(userHash);
-      }
+    } else {
+      console.log(`No controller found for client: ${clientId || 'initiating client'}`);
+    }
+
+    // Note: We don't clean up tasks here anymore - let the main.ts handle cleanup
+    // This prevents race conditions where cleanup interferes with ongoing processing
+  }
+
+  // Clean up a specific client and task
+  public cleanupClient(userHash: string, arxivId: string): void {
+    const session = this.sessions.get(userHash);
+    if (!session) return;
+
+    const clientId = userHash + "-" + arxivId;
+    
+    // Remove the client
+    session.clients.delete(clientId);
+    console.log(`Cleaned up client: ${clientId}`);
+    
+    // Remove the task
+    session.tasks.delete(arxivId);
+    console.log(`Cleaned up task: ${arxivId}`);
+    
+    // Remove session if empty
+    if (session.tasks.size === 0 && session.clients.size === 0) {
+      this.sessions.delete(userHash);
+      console.log(`Cleaned up session: ${userHash}`);
     }
   }
 

@@ -53,6 +53,9 @@ export async function cleanUpHTMLGeneration(
     }
   }
 
+  // remove tmp/${arxivId}/latex directory
+  await Deno.remove(`./tmp/${arxivId}/latex`, { recursive: true });
+
   progressWorker?.postProgress({
     userHash,
     arxivId,
