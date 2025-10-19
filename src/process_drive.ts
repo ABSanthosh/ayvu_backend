@@ -1,14 +1,26 @@
 import { drive_v3, google, Auth } from "googleapis";
 import { Readable } from "node:stream";
+import { ProgressWorker } from "./progress/progress-worker.ts";
+import {
+  ProcessingStatus,
+  ProcessingStep,
+  ProgressUpdate,
+} from "./progress/progress.ts";
 
 export default class MakeDriveGreatAgain {
   private drive: drive_v3.Drive;
+  private userHash?: string;
+  private progressWorker?: ProgressWorker;
   constructor({
     accessToken,
     refreshToken,
+    userHash,
+    progressWorker,
   }: {
     accessToken: string;
     refreshToken: string;
+    userHash?: string;
+    progressWorker?: ProgressWorker;
   }) {
     const auth: Auth.OAuth2Client = new google.auth.OAuth2();
     auth.setCredentials({
@@ -17,6 +29,9 @@ export default class MakeDriveGreatAgain {
     });
 
     this.drive = google.drive({ version: "v3", auth });
+
+    this.userHash = userHash;
+    this.progressWorker = progressWorker;
   }
 
   async uploadPaper(arxivId: string): Promise<void> {
@@ -42,11 +57,21 @@ export default class MakeDriveGreatAgain {
     const fileUploads = [];
     for (const { name, file, size } of this.getFilesInDirectory(arxivId)) {
       if (!(await this.isFileExists(name, arxivFolderId))) {
-        console.log(`Uploading file: ${name}`);
+        // console.log(`Uploading file: ${name}`);
         fileUploads.push(
           this.uploadFile(name, file, arxivFolderId, ({ bytesRead }) => {
             const progress = ((bytesRead / size) * 100).toFixed(2);
-            console.log(`Uploading ${name}: ${progress}%`);
+            // console.log(`Uploading ${name}: ${progress}%`);
+            this.progressWorker?.postProgress({
+              userHash: this.userHash,
+              arxivId,
+              step: ProcessingStep.UPLOAD_TO_DRIVE,
+              progress: {
+                progress: +progress,
+                status: ProcessingStatus.IN_PROGRESS,
+                message: `Uploading file ${name}: ${progress}%`,
+              },
+            } as ProgressUpdate);
           })
         );
       }

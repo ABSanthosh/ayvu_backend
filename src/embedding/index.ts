@@ -1,3 +1,9 @@
+import { ProgressWorker } from "../progress/progress-worker.ts";
+import {
+  ProcessingStatus,
+  ProcessingStep,
+  ProgressUpdate,
+} from "../progress/progress.ts";
 import { Chunker, type Chunk } from "./chunker.ts";
 import { EmbeddingMessages, EmbeddingModel } from "./worker.ts";
 
@@ -10,6 +16,8 @@ const embeddingWorker = new Worker(
 
 export async function generateWeights(
   arxivId: string,
+  userHash?: string,
+  progressWorker?: ProgressWorker,
   numChunks = 2048
 ): Promise<void> {
   const html = Deno.readTextFileSync(`./tmp/${arxivId}/html/paper.html`);
@@ -33,6 +41,15 @@ export async function generateWeights(
       case "error":
         break;
       case "progress":
+        progressWorker?.postProgress({
+          userHash,
+          arxivId,
+          step: ProcessingStep.GENERATE_WEIGHTS,
+          progress: {
+            status: ProcessingStatus.IN_PROGRESS,
+            message: message.payload.progress.status,
+          },
+        } as ProgressUpdate);
         break;
       case "finishExtractEmbedding":
         if (message.payload.requestID === arxivId) {
@@ -41,6 +58,16 @@ export async function generateWeights(
             `./tmp/${arxivId}/html/embeddings.json`,
             JSON.stringify(message.payload.embeddings)
           );
+
+          progressWorker?.postProgress({
+            userHash,
+            arxivId,
+            step: ProcessingStep.GENERATE_WEIGHTS,
+            progress: {
+              status: ProcessingStatus.COMPLETED,
+              message: `Finished generating weights for ${arxivId}`,
+            },
+          } as ProgressUpdate);
           return message.payload.embeddings.flat();
         }
     }

@@ -1,3 +1,10 @@
+import { ProgressWorker } from "./progress/progress-worker.ts";
+import {
+  ProcessingStatus,
+  ProcessingStep,
+  ProgressUpdate,
+} from "./progress/progress.ts";
+
 async function findStyFiles(latexDir: string): Promise<string[]> {
   const styFiles: string[] = [];
 
@@ -137,7 +144,11 @@ async function findTexFile(latexDir: string): Promise<string | null> {
   }
 }
 
-export async function compileLatex(arxivId: string): Promise<void> {
+export async function compileLatex(
+  arxivId: string,
+  userHash?: string,
+  progressWorker?: ProgressWorker
+): Promise<void> {
   const htmlPath = `./tmp/${arxivId}/html`;
   await Deno.mkdir(htmlPath, { recursive: true });
   const rootPath = Deno.cwd();
@@ -145,7 +156,7 @@ export async function compileLatex(arxivId: string): Promise<void> {
 
   // Deno.chdir(`./tmp/${arxivId}/latex`);
   const texFile = await findTexFile(latexDir);
-  console.log(texFile);
+
   if (!texFile) {
     throw new Error(`No .tex file found for arXiv ID ${arxivId}`);
   }
@@ -190,6 +201,16 @@ export async function compileLatex(arxivId: string): Promise<void> {
     texFile,
   ];
 
+  progressWorker?.postProgress({
+    userHash,
+    arxivId,
+    step: ProcessingStep.COMPILE_LATEX,
+    progress: {
+      status: ProcessingStatus.IN_PROGRESS,
+      message: "Starting LaTeX compilation with LaTeXML",
+    },
+  } as ProgressUpdate);
+
   const command = new Deno.Command("latexmlc", {
     args: latexmlArgs,
   });
@@ -203,6 +224,16 @@ export async function compileLatex(arxivId: string): Promise<void> {
       }`
     );
   }
+
+  progressWorker?.postProgress({
+    userHash,
+    arxivId,
+    step: ProcessingStep.COMPILE_LATEX,
+    progress: {
+      status: ProcessingStatus.COMPLETED,
+      message: "LaTeX compilation completed successfully",
+    },
+  } as ProgressUpdate);
 
   Deno.chdir(rootPath);
   // Clean up the latex directory to save space

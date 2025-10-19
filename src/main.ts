@@ -5,6 +5,8 @@ import { cleanUpHTMLGeneration } from "./postprocessing/html.ts";
 import { postprocess } from "./postprocessing/index.ts";
 import MakeDriveGreatAgain from "./process_drive.ts";
 import { generateWeights } from "./embedding/index.ts";
+import { ProgressWorker } from "./progress/progress-worker.ts";
+import { ModuleProgress, ProgressUpdate } from "./progress/progress.ts";
 
 if (import.meta.main) {
   // Remove everything in the tmp directory
@@ -16,6 +18,7 @@ if (import.meta.main) {
   // await Deno.mkdir("./tmp");
 
   const router = new Router();
+  const progressWorker = new ProgressWorker();
 
   router.get("/", (ctx) => {
     ctx.response.body = "Hello world";
@@ -29,6 +32,10 @@ if (import.meta.main) {
       return;
     }
 
+    ctx.response.headers.set("Content-Type", "text/event-stream");
+    ctx.response.headers.set("Cache-Control", "no-cache");
+    ctx.response.headers.set("Connection", "keep-alive");
+
     // Get tokens from URL parameters
     const refresh_token = ctx.request.url.searchParams.get("refresh_token");
     const access_token = ctx.request.url.searchParams.get("access_token");
@@ -41,29 +48,53 @@ if (import.meta.main) {
       return;
     }
 
-    try {
-      // await downloadArxivSource(arxivId);
-      // await extractTarball(arxivId);
-      // await compileLatex(arxivId);
-      // postprocess(arxivId);
-      // await cleanUpHTMLGeneration(arxivId);
-      // generateWeights(arxivId);
+    const stream = new ReadableStream({
+      start(controller) {
+        const userHash = progressWorker.registerClient(
+          access_token,
+          refresh_token,
+          arxivId,
+          controller
+        );
 
-      const drive = new MakeDriveGreatAgain({
-        accessToken: access_token,
-        refreshToken: refresh_token,
-      });
-      await drive.uploadPaper(arxivId);
+        (async () => {
+          try {
+            // await downloadArxivSource(arxivId, userHash, progressWorker);
+            // await extractTarball(arxivId, userHash, progressWorker);
+            // await compileLatex(arxivId, userHash, progressWorker);
+            // postprocess(arxivId, userHash, progressWorker);
+            // await cleanUpHTMLGeneration(arxivId, userHash, progressWorker);
+            await generateWeights(arxivId, userHash, progressWorker);
 
-      ctx.response.body = {
-        message: "Extraction and upload successful",
-      };
-    } catch (error) {
-      ctx.response.status = 500;
-      ctx.response.body = {
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
+            // const drive = new MakeDriveGreatAgain({
+            //   accessToken: access_token,
+            //   refreshToken: refresh_token,
+            //   userHash: userHash,
+            //   progressWorker: progressWorker,
+            // });
+            // await drive.uploadPaper(arxivId);
+          } catch (error) {
+            ctx.response.status = 500;
+            ctx.response.body = {
+              error: error instanceof Error ? error.message : String(error),
+            };
+          }
+        })();
+      },
+      cancel() {
+        // Clean up on client disconnection
+        const userHash = progressWorker.userHash(access_token, refresh_token);
+        const session = progressWorker.sessions.get(userHash);
+        if (session) {
+          session.clients.delete(userHash + "-" + arxivId);
+          if (session.tasks.size === 0 && session.clients.size === 0) {
+            progressWorker.sessions.delete(userHash);
+          }
+        }
+      },
+    });
+
+    ctx.response.body = stream;
   });
 
   const app = new Application();
