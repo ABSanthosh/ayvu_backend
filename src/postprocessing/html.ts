@@ -52,4 +52,14 @@ export async function cleanUpHTMLGeneration(
       await Deno.remove(`./tmp/${arxivId}/html/${dirEntry.name}`);
     }
   }
+
+  progressWorker?.postProgress({
+    userHash,
+    arxivId,
+    step: ProcessingStep.POSTPROCESS,
+    progress: {
+      status: ProcessingStatus.COMPLETED,
+      message: "HTML generation cleanup completed successfully",
+    },
+  } as ProgressUpdate);
 }

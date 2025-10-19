@@ -13,12 +13,12 @@ import {
 } from "../progress/progress.ts";
 // import { minifyHTML } from "./html.ts";
 
-export function postprocess(
+export async function postprocess(
   arxivId: string,
   userHash?: string,
   progressWorker?: ProgressWorker
-): void {
-  const htmlContent = Deno.readTextFileSync(`./tmp/${arxivId}/html/paper.html`);
+): Promise<void> {
+  const htmlContent = await Deno.readTextFile(`./tmp/${arxivId}/html/paper.html`);
   const dom = new JSDOM(htmlContent);
   const document = dom.window.document;
 
@@ -31,7 +31,7 @@ export function postprocess(
 
   // const processedHTML = await minifyHTML(dom.serialize());
   const processedHTML = dom.serialize();
-  Deno.writeTextFileSync(`./tmp/${arxivId}/html/paper.html`, processedHTML);
+  await Deno.writeTextFile(`./tmp/${arxivId}/html/paper.html`, processedHTML);
   progressWorker?.postProgress({
     userHash,
     arxivId,

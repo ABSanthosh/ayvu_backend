@@ -5,7 +5,6 @@ export enum ProcessingStep {
   EXTRACT_TARBALL = "extract_tarball",
   COMPILE_LATEX = "compile_latex",
   POSTPROCESS = "postprocess",
-  CLEANUP_HTML = "cleanup_html",
   GENERATE_WEIGHTS = "generate_weights",
   UPLOAD_TO_DRIVE = "upload_to_drive",
 }

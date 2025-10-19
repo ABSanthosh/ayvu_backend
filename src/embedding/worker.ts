@@ -74,30 +74,34 @@ export type EmbeddingMessages =
       };
     };
 
-class Embeddings {
+export interface OtherProgressInfo {
+  task: string;
+  status: "progress" | "done" | "error";
+  progress: number;
+  file?: string;
+}
+
+export class Embeddings {
   public progress: ProgressInfo | null = null;
   private model: PreTrainedModel | null = null;
   private tokenizer: PreTrainedTokenizer | null = null;
-  private isInitialized: boolean = false;
   private taskQueue: Array<() => Promise<void>> = [];
 
   constructor(
     private requestID: string,
-    private model_id: EmbeddingModel = EmbeddingModel.gteSmall
+    private model_id: EmbeddingModel = EmbeddingModel.gteSmall,
+    private onProgress?: (message: string) => void
   ) {
-    this.init();
+    // this.init();
   }
 
   private progress_callback(progress: ProgressInfo): void {
-    this.progress = progress;
-    postMessage({
-      command: "progress",
-      payload: {
-        requestID: this.requestID,
-        originalCommand: "init",
-        progress,
-      },
-    });
+    this.onProgress?.(
+      `Loading model (${(progress.status === "progress"
+        ? (progress.loaded / progress.total) * 100
+        : 0
+      ).toFixed(2)}%)`
+    );
   }
 
   public async init(): Promise<void> {
@@ -113,7 +117,6 @@ class Embeddings {
           local_files_only: true,
         }),
       ]);
-      this.isInitialized = true;
       // Process any queued tasks
       console.log("Processing queued tasks:", this.taskQueue.length);
       await this.processTaskQueue();
@@ -144,16 +147,20 @@ class Embeddings {
     }
   }
 
-  async startExtractEmbedding(chunks: Chunk[]): Promise<void> {
-    console.log("Queueing embedding task, not initialized yet.");
-    if (!this.isInitialized) {
-      // Queue the task if not initialized
-      this.taskQueue.push(() => this.startExtractEmbedding(chunks));
-      return;
-    }
-    if (!this.tokenizer || !this.model || this.progress?.status !== "done") {
-      throw new Error("Embedding service is not ready.");
-    }
+  async startExtractEmbedding(chunks: Chunk[]): Promise<EmbeddingMessages> {
+    // if (!this.tokenizer || !this.model) {
+    //   this.addTaskToQueue(async () => {
+    //     await this.startExtractEmbedding(chunks);
+    //   });
+    //   return {
+    //     command: "error",
+    //     payload: {
+    //       requestID: this.requestID,
+    //       originalCommand: "startExtractEmbedding",
+    //       message: "Model or tokenizer not initialized yet.",
+    //     },
+    //   };
+    // }
     try {
       const inputs = chunks.map((chunk) => {
         const title = chunk.metadata.title || "none";
@@ -162,12 +169,15 @@ class Embeddings {
       });
 
       console.log("Inputs for embedding:", inputs.length);
+      this.onProgress?.(`Generating embeddings for ${inputs.length} chunks...`);
 
-      const tokenized = await this.tokenizer(inputs, { padding: true });
-      const { sentence_embedding } = await this.model(tokenized);
+      const tokenized = await this.tokenizer!(inputs, { padding: true });
+      const { sentence_embedding } = await this.model!(tokenized);
       const embeddings: number[][] = sentence_embedding.tolist();
 
-      postMessage({
+      this.onProgress?.(`Finished generating embeddings for ${inputs.length} chunks.`);
+
+      return {
         command: "finishExtractEmbedding",
         payload: {
           model_id: this.model_id,
@@ -175,106 +185,16 @@ class Embeddings {
           chunks,
           embeddings,
         },
-      });
+      };
     } catch (error) {
-      postMessage({
+      return {
         command: "error",
         payload: {
           requestID: this.requestID,
           originalCommand: "startExtractEmbedding",
           message: (error as Error).message,
         },
-      });
-    }
-  }
-
-  async queryEmbedding(query: string): Promise<void> {
-    if (!this.isInitialized) {
-      // Queue the task if not initialized
-      this.taskQueue.push(() => this.queryEmbedding(query));
-      return;
-    }
-    if (!this.tokenizer || !this.model || this.progress?.status !== "done") {
-      throw new Error("Embedding service is not ready.");
-    }
-    try {
-      const input = `${PREFIXES.query}${query}`;
-      const tokenized = await this.tokenizer([input], { padding: true });
-      const { sentence_embedding } = await this.model(tokenized);
-      const embedding: number[] = sentence_embedding.tolist()[0];
-
-      postMessage({
-        command: "finishQueryEmbedding",
-        payload: {
-          model_id: this.model_id,
-          requestID: this.requestID,
-          query,
-          embedding,
-        },
-      });
-    } catch (error) {
-      postMessage({
-        command: "error",
-        payload: {
-          requestID: this.requestID,
-          originalCommand: "queryEmbedding",
-          message: (error as Error).message,
-        },
-      });
+      };
     }
   }
 }
-
-// Create a single instance
-let embeddingInstance: Embeddings | null = null;
-
-self.onmessage = async (e: MessageEvent<EmbeddingMessages>) => {
-  console.log(
-    embeddingInstance !== null
-      ? "Using existing embedding instance."
-      : "No existing instance."
-  );
-  if (!embeddingInstance) {
-    if (
-      e.data.command === "startExtractEmbedding" ||
-      e.data.command === "startQueryEmbedding"
-    ) {
-      embeddingInstance = new Embeddings(
-        e.data.payload.requestID,
-        e.data.payload.model_id
-      );
-      // add to queue
-      embeddingInstance.addTaskToQueue(async () => {
-        switch (e.data.command) {
-          case "startExtractEmbedding": {
-            const { chunks } = e.data.payload;
-            await embeddingInstance!.startExtractEmbedding(chunks);
-            break;
-          }
-          case "startQueryEmbedding": {
-            const { query } = e.data.payload;
-            await embeddingInstance!.queryEmbedding(query);
-            break;
-          }
-        }
-      });
-    }
-  } else {
-    switch (e.data.command) {
-      case "startExtractEmbedding": {
-        const { chunks } = e.data.payload;
-        console.log(
-          "Received startExtractEmbedding command with chunks:",
-          chunks.length
-        );
-        await embeddingInstance.startExtractEmbedding(chunks);
-        break;
-      }
-      case "startQueryEmbedding": {
-        const { query } = e.data.payload;
-        await embeddingInstance.queryEmbedding(query);
-        break;
-      }
-    }
-  }
-};

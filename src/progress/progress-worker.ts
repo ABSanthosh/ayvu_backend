@@ -39,7 +39,6 @@ export class ProgressWorker {
         [ProcessingStep.EXTRACT_TARBALL]: { status: ProcessingStatus.PENDING },
         [ProcessingStep.COMPILE_LATEX]: { status: ProcessingStatus.PENDING },
         [ProcessingStep.POSTPROCESS]: { status: ProcessingStatus.PENDING },
-        [ProcessingStep.CLEANUP_HTML]: { status: ProcessingStatus.PENDING },
         [ProcessingStep.GENERATE_WEIGHTS]: { status: ProcessingStatus.PENDING },
         [ProcessingStep.UPLOAD_TO_DRIVE]: { status: ProcessingStatus.PENDING },
       },

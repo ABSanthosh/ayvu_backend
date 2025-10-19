@@ -6,7 +6,6 @@ import { postprocess } from "./postprocessing/index.ts";
 import MakeDriveGreatAgain from "./process_drive.ts";
 import { generateWeights } from "./embedding/index.ts";
 import { ProgressWorker } from "./progress/progress-worker.ts";
-import { ModuleProgress, ProgressUpdate } from "./progress/progress.ts";
 
 if (import.meta.main) {
   // Remove everything in the tmp directory
@@ -24,7 +23,7 @@ if (import.meta.main) {
     ctx.response.body = "Hello world";
   });
 
-  router.get("/arxiv/:id", async (ctx) => {
+  router.get("/arxiv/:id", (ctx) => {
     const arxivId = ctx.params.id;
     if (!arxivId) {
       ctx.response.status = 400;
@@ -49,7 +48,7 @@ if (import.meta.main) {
     }
 
     const stream = new ReadableStream({
-      start(controller) {
+      async start(controller) {
         const userHash = progressWorker.registerClient(
           access_token,
           refresh_token,
@@ -57,29 +56,47 @@ if (import.meta.main) {
           controller
         );
 
-        (async () => {
-          try {
-            // await downloadArxivSource(arxivId, userHash, progressWorker);
-            // await extractTarball(arxivId, userHash, progressWorker);
-            // await compileLatex(arxivId, userHash, progressWorker);
-            // postprocess(arxivId, userHash, progressWorker);
-            // await cleanUpHTMLGeneration(arxivId, userHash, progressWorker);
-            await generateWeights(arxivId, userHash, progressWorker);
+        try {
+          await downloadArxivSource(arxivId, userHash, progressWorker);
+          await extractTarball(arxivId, userHash, progressWorker);
+          await compileLatex(arxivId, userHash, progressWorker);
+          await postprocess(arxivId, userHash, progressWorker);
+          await cleanUpHTMLGeneration(arxivId, userHash, progressWorker);
+          await generateWeights(arxivId, userHash, progressWorker);
 
-            // const drive = new MakeDriveGreatAgain({
-            //   accessToken: access_token,
-            //   refreshToken: refresh_token,
-            //   userHash: userHash,
-            //   progressWorker: progressWorker,
-            // });
-            // await drive.uploadPaper(arxivId);
-          } catch (error) {
-            ctx.response.status = 500;
-            ctx.response.body = {
-              error: error instanceof Error ? error.message : String(error),
-            };
+          const drive = new MakeDriveGreatAgain({
+            accessToken: access_token,
+            refreshToken: refresh_token,
+            userHash: userHash,
+            progressWorker: progressWorker,
+          });
+          await drive.uploadPaper(arxivId);
+
+          // Send completion message and close the stream
+          controller.enqueue(new TextEncoder().encode("data: {\"type\":\"complete\",\"message\":\"Processing completed successfully\"}\n\n"));
+          controller.close();
+        } catch (error) {
+          // Send error message and close the stream
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({
+            type: "error",
+            message: error instanceof Error ? error.message : String(error)
+          })}\n\n`));
+          controller.close();
+          
+          ctx.response.status = 500;
+          ctx.response.body = {
+            error: error instanceof Error ? error.message : String(error),
+          };
+        } finally {
+          // Clean up the client registration
+          const session = progressWorker.sessions.get(userHash);
+          if (session) {
+            session.clients.delete(userHash + "-" + arxivId);
+            if (session.tasks.size === 0 && session.clients.size === 0) {
+              progressWorker.sessions.delete(userHash);
+            }
           }
-        })();
+        }
       },
       cancel() {
         // Clean up on client disconnection
