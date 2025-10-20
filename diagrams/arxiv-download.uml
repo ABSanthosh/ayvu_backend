@@ -1,0 +1,53 @@
+@startuml arxiv-download
+!theme blueprint
+title ArXiv Download & Extraction Process
+
+start
+
+:downloadArxivSource() called;
+:Construct URL\narxiv.org/e-print/{id};
+:Progress Update\nDOWNLOAD_SOURCE\nIN_PROGRESS;
+
+:HTTP Fetch\nArXiv API;
+
+if (Response OK?) then (yes)
+  :Create Directory\n./tmp/{arxivId}/;
+  :Write Tarball\nsource.tar.gz;
+  :Progress Update\nDOWNLOAD_SOURCE\nCOMPLETED;
+else (no)
+  :Throw Error\nHTTP Status Not OK;
+  stop
+endif
+
+:extractTarball() called;
+:Open Tarball\nsource.tar.gz;
+:Create DecompressionStream\ngzip;
+:Create UntarStream\nParse tar entries;
+
+repeat
+  :Extract entry;
+  :Create directories;
+  :Write file to\n./tmp/{arxivId}/latex/;
+  :Progress Update\nEXTRACT_TARBALL\nPer-file progress;
+repeat while (More entries?)
+
+:Cleanup\nRemove source.tar.gz;
+:Progress Update\nEXTRACT_TARBALL\nCOMPLETED;
+
+stop
+
+note right
+  **Key Features:**
+  • Streaming decompression
+    for memory efficiency
+  • Path normalization
+    for security
+  • Real-time progress updates
+  • Automatic cleanup
+  • Comprehensive error handling
+end note
+
+floating note left : ArXiv API\nFetch Source
+floating note right : Local Storage\n./tmp/{arxivId}/
+
+@enduml

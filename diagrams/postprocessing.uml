@@ -1,0 +1,74 @@
+@startuml postprocessing
+!theme blueprint
+title HTML Post-processing & Cleanup Pipeline
+
+start
+
+:postprocess() called;
+:Load HTML\npaper.html;
+:Create JSDOM\nDocument;
+
+partition "Content Enhancement" {
+  :processFigures();
+  note right : Reorder figure captions\nafter images
+  
+  :processFootnotes();
+  note right
+    Relocate author footnotes
+    Deduplicate identical notes
+    Create numbered references
+    Add .ltx_engrafo_author_notes
+  end note
+  
+  :processHeadings();
+  note right
+    Convert ALL-CAPS to title case
+    Remove Unicode anomalies
+    Apply consistent formatting
+  end note
+}
+
+partition "Link & Math Processing" {
+  :processLinks();
+  note right
+    Auto-linkify plain text URLs
+    Add http:// to incomplete URLs
+    Preserve existing links
+    Use tree walker for safety
+  end note
+  
+  :processMath();
+  note right
+    Wrap display math
+    Wrap inline math
+    Create scrollable containers
+    Add .ltx_DisplayMath class
+  end note
+  
+  :processInlineStyles();
+  note right : Remove all inline\nstyle attributes
+}
+
+:Serialize DOM to HTML;
+:Save enhanced\npaper.html;
+:Progress Update\nPOSTPROCESS COMPLETED;
+
+fork
+  :cleanUpHTMLGeneration() called;
+fork again
+  :Scan HTML directory;
+  
+  repeat
+    :Find temp files;
+    :Remove temp file;
+    :Progress Update\nper file cleanup;
+  repeat while (More temp files?) is (yes)
+  ->no;
+  
+  :Remove latex directory;
+  :Progress Update\nCLEANUP COMPLETED;
+end fork
+
+stop
+
+@enduml

@@ -1,0 +1,103 @@
+@startuml embedding-generation
+!theme blueprint
+title Semantic Embedding Generation System
+
+start
+
+:generateWeights() called;
+:Read HTML\npaper.html;
+
+partition "Document Chunking" {
+  :Initialize Chunker\n(html, maxChars=2048);
+  
+  fork
+    :Extract TOC\nNavigation structure;
+    note right
+      TOC Elements:
+      Section IDs
+      Titles  
+      Hierarchy levels
+      Parent references
+    end note
+  fork again
+    :Parse Sections\nHierarchy detection;
+    note right
+      Hierarchy Types:
+      section
+      subsection
+      subsubsection
+    end note
+  fork again
+    :Extract Content\nText blocks;
+    note right : Extract text content\nwhile preserving structure
+  end fork
+  
+  :Chunk Text\nOverlapping windows;
+  note right
+    Chunking Strategy:
+    Max 2048 characters
+    200 character overlap
+    Safety mechanisms
+    Progress tracking
+  end note
+}
+
+:Chunks Created\nWith metadata;
+
+partition "ML Model Processing" {
+  :Initialize Embeddings\nModel & Tokenizer;
+  
+  :Load ML Model\nembeddinggemma-300m;
+  note right
+    Model Configuration:
+    Local models only
+    Quantized (q4) for efficiency
+    Progress callbacks
+    Task queueing system
+  end note
+  
+  :Progress Update\nGENERATE_WEIGHTS\nIN_PROGRESS;
+}
+
+partition "Text Processing" {
+  :Preprocess Text\nAdd prefixes;
+  note right
+    Text Prefixes:
+    "title: {title} | text: "
+    
+    Purpose:
+    Document context
+    Better embedding quality
+  end note
+  
+  :Tokenize Inputs\nPadding applied;
+  :Model Inference\nGenerate embeddings;
+}
+
+partition "Results Processing" {
+  :Process Results\nMap chunks to embeddings;
+  
+  :Create Index\nmetadata + embedding;
+  note right
+    Index Structure:
+    metadata: Chunk
+    embedding: number array
+  end note
+  
+  :Save to File\nembeddings.json;
+  :Progress Update\nGENERATE_WEIGHTS\nCOMPLETED;
+}
+
+stop
+
+floating note right
+  Key Features:
+  Intelligent document chunking with section awareness
+  Local ML model execution for privacy
+  Overlapping text windows for context preservation
+  Academic paper structure preservation
+  Document-specific text prefixes for quality
+  Comprehensive progress tracking
+end note
+
+@enduml

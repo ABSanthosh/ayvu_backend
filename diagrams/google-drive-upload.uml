@@ -1,0 +1,89 @@
+@startuml google-drive-upload
+!theme blueprint
+title Google Drive Upload Workflow
+
+start
+
+:uploadPaper() called;
+note right : Google OAuth2\nAccess & Refresh Tokens
+
+partition "Folder Structure Setup" {
+  if (.ayvu folder exists?) then (yes)
+    :Get .ayvu folder ID;
+  else (no)
+    :createFolder()\n".ayvu" in root;
+    :makePublic()\nSet read permissions;
+  endif
+  
+  if (arxivId folder exists?) then (yes)
+    :Get arxivId folder ID;
+  else (no)
+    :createFolder()\narxivId in .ayvu;
+    :makePublic()\nSet read permissions;
+  endif
+}
+
+partition "File Processing" {
+  :Scan Local Files\n./tmp/{arxivId}/html;
+  
+  repeat
+    :Get next file;
+    
+    if (File exists in Drive?) then (yes)
+      :Skip file\n(avoid duplicates);
+    else (no)
+      :uploadFile()\nResumable upload;
+      
+      :Detect MIME type;
+      note right
+        MIME Types:
+        .html -> text/html
+        .css -> text/css
+        .js -> application/javascript
+        .png -> image/png
+        .json -> application/json
+      end note
+      
+      :Progress callbacks;
+      :Set public permissions;
+      
+      :Progress Update\nPer-file progress\nBytes uploaded;
+    endif
+    
+  repeat while (More files?) is (yes)
+  ->no;
+}
+
+:Upload Complete\nAll files processed;
+:Progress Update\nUPLOAD_TO_DRIVE\nCOMPLETED;
+
+stop
+
+floating note right
+  Google Drive Structure:
+  Google Drive Root
+  - .ayvu/
+    - {arxivId}/
+      - paper.html
+      - embeddings.json
+      - assets/
+end note
+
+floating note left
+  Key Features:
+  Parallel file uploads for efficiency
+  Automatic folder structure creation  
+  Duplicate file detection and skipping
+  Real-time upload progress tracking
+  Public permission setting for accessibility
+  Comprehensive error handling
+  Smart MIME type detection
+  
+  Error Handling:
+  API failures
+  Network issues
+  Permission errors
+  Quota limits
+end note
+
+@enduml

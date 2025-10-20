@@ -1,0 +1,88 @@
+@startuml overall-architecture
+!theme blueprint
+title LaTeXML ArXiv Processing System - Overall Architecture
+
+actor "Frontend Client" as client
+rectangle "API Layer" {
+  component "Oak API Server\nmain.ts" as api
+  component "ProgressWorker\nEvent System" as progress
+  component "Server-Sent Events\nStream" as sse
+}
+
+rectangle "Processing Pipeline" {
+  component "Download ArXiv\nSource" as download
+  component "Extract\nTarball" as extract
+  component "Compile LaTeX\nto HTML" as compile
+  component "Post-process\nHTML" as postprocess
+  component "Cleanup\nGeneration" as cleanup
+  component "Generate\nEmbeddings" as embeddings
+  component "Upload to\nGoogle Drive" as upload
+}
+
+database "Local Storage" {
+  storage "./tmp/\nStorage" as tmp
+  storage "ML Models\nLocal Storage" as models
+}
+
+cloud "External Services" {
+  component "ArXiv\ne-print API" as arxiv
+  component "LaTeXML\nCompiler" as latexml
+  component "Google Drive\nCloud Storage" as gdrive
+}
+
+' Main flow connections
+client --> api : HTTP Request
+api --> sse : Create Stream
+sse --> progress : Register Client
+client <-- sse : Real-time Updates
+
+api --> download
+download --> extract
+extract --> compile
+compile --> postprocess
+postprocess --> cleanup
+cleanup --> embeddings
+embeddings --> upload
+
+' External connections
+download --> arxiv : Fetch Source
+compile --> latexml : Convert LaTeX
+upload --> gdrive : Store Files
+
+' Storage connections
+download ..> tmp : Store Tarball
+extract ..> tmp : Extract Files
+compile ..> tmp : Generate HTML
+postprocess ..> tmp : Process HTML
+cleanup ..> tmp : Clean Files
+embeddings ..> tmp : Save Embeddings
+embeddings ..> models : Load Models
+
+' Progress reporting (dotted lines)
+download ..> progress : Progress Updates
+extract ..> progress : Progress Updates
+compile ..> progress : Progress Updates
+postprocess ..> progress : Progress Updates
+cleanup ..> progress : Progress Updates
+embeddings ..> progress : Progress Updates
+upload ..> progress : Progress Updates
+
+note right of progress
+  Event-driven progress tracking
+  • Real-time SSE updates
+  • Multi-client support
+  • Session management
+  • Error propagation
+end note
+
+note bottom of "Processing Pipeline"
+  Six-step processing workflow:
+  1. Download source from ArXiv
+  2. Extract LaTeX files
+  3. Compile to HTML with LaTeXML
+  4. Post-process and enhance HTML
+  5. Generate semantic embeddings
+  6. Upload to Google Drive
+end note
+
+@enduml

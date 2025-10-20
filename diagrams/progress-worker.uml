@@ -1,0 +1,94 @@
+@startuml progress-worker
+!theme blueprint
+title ProgressWorker Event-Driven Architecture
+
+allowmixing
+
+class ProgressWorker {
+  +sessions: Map<string, UserSession>
+  +userHash(accessToken, refreshToken): string
+  +registerClient(): string
+  +postProgress(update): void
+  +cleanupClient(): void
+  -sendUpdate(): void
+}
+
+class UserSession {
+  +userHash: string
+  +tasks: Map<string, ArxivTaskProgress>
+  +clients: Map<string, Controller>
+}
+
+class ArxivTaskProgress {
+  +arxivId: string
+  +steps: Record<ProcessingStep, StepProgress>
+  +overallStatus: ProcessingStatus
+  +initiatingClient?: Controller
+}
+
+enum ProcessingStep {
+  DOWNLOAD_SOURCE
+  EXTRACT_TARBALL
+  COMPILE_LATEX
+  POSTPROCESS
+  GENERATE_WEIGHTS
+  UPLOAD_TO_DRIVE
+}
+
+enum ProcessingStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+class StepProgress {
+  +status: ProcessingStatus
+  +progress?: number
+  +message?: string
+  +error?: string
+}
+
+actor "Frontend Client 1" as client1
+actor "Frontend Client 2" as client2
+component "OAuth Tokens" as tokens
+component "SSE Controller 1" as sse1
+component "SSE Controller 2" as sse2
+
+tokens --> ProgressWorker : userHash(tokens)
+
+ProgressWorker "1" *-- "many" UserSession : manages
+UserSession "1" *-- "many" ArxivTaskProgress : tracks
+UserSession "1" *-- "many" sse1 : streams to
+
+ArxivTaskProgress "1" *-- "6" ProcessingStep : has steps
+StepProgress "1" -- "1" ProcessingStatus : current status
+
+client1 --> sse1 : SSE Connection
+client2 --> sse2 : SSE Connection
+sse1 --> UserSession : registered
+sse2 --> UserSession : registered
+
+ProgressWorker --> sse1 : sendUpdate()
+ProgressWorker --> sse2 : sendUpdate()
+
+note right of ProgressWorker
+  Key Features:
+  Hash-based user identification
+  Multi-client session management
+  Real-time progress broadcasting
+  Automatic cleanup on disconnect
+  Event-driven architecture
+end note
+
+note bottom of ArxivTaskProgress
+  Progress Flow:
+  1. Client connects with OAuth tokens
+  2. Hash generates unique userHash
+  3. Session created/retrieved
+  4. Task progress tracked through steps
+  5. Real-time updates sent via SSE
+  6. Cleanup on completion/error
+end note
+
+@enduml

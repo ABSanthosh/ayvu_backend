@@ -1,0 +1,82 @@
+@startuml sse-streaming
+!theme blueprint
+title Server-Sent Events Communication Flow
+
+actor "Frontend Client" as client
+participant "Oak API Server\nmain.ts" as api
+participant "ProgressWorker\nEvent System" as progress
+participant "SSE Controller\nReadableStream" as sse
+participant "Processing Pipeline\n6 Main Steps" as pipeline
+
+== Connection Establishment ==
+client -> api : HTTP GET /arxiv/:id\n+ OAuth tokens
+api -> progress : registerClient()
+progress -> sse : Create SSE stream
+sse -> client : SSE connection established
+
+== Session Management ==
+progress -> progress : Generate userHash\nfrom OAuth tokens
+progress -> progress : Create/get UserSession
+progress -> progress : Track client mapping
+
+== Processing & Progress Updates ==
+api -> pipeline : Start processing
+loop For each processing step
+  pipeline -> progress : postProgress()
+  progress -> sse : sendUpdate()
+  sse -> client : **Progress Message**
+  note over client
+    data: {
+      "type": "progress",
+      "data": {
+        "arxivId": "...",
+        "step": "DOWNLOAD_SOURCE",
+        "progress": {
+          "status": "IN_PROGRESS",
+          "progress": 45,
+          "message": "Downloading..."
+        }
+      }
+    }
+  end note
+end
+
+== Completion ==
+pipeline -> progress : Final progress update
+progress -> sse : sendUpdate()
+sse -> client : **Complete Message**
+note over client
+  data: {
+    "type": "complete",
+    "message": "Processing completed successfully"
+  }
+end note
+
+sse -> client : Close connection
+api -> progress : cleanupClient()
+
+== Error Handling ==
+alt Error occurs
+  pipeline -> progress : Error update
+  progress -> sse : sendUpdate()
+  sse -> client : **Error Message**
+  note over client
+    data: {
+      "type": "error",
+      "message": "Detailed error description"
+    }
+  end note
+  sse -> client : Close connection
+end
+
+== Multi-Client Support ==
+note over progress
+  **Session Features:**
+  • User identification via OAuth hash
+  • Multi-client per user support
+  • Task progress aggregation
+  • Automatic cleanup on disconnect
+  • Real-time broadcasting to all clients
+end note
+
+@enduml
