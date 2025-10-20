@@ -37,11 +37,14 @@ export async function generateWeights(
   const result = await embeddingInstance!.startExtractEmbedding(htmlChunks);
 
   if (result.command === "finishExtractEmbedding") {
-    const weights = result.payload.embeddings;
+    const index = result.payload.chunks.map((chunk, idx) => ({
+      metadata: chunk,
+      embedding: result.payload.embeddings[idx],
+    }));
 
     await Deno.writeTextFile(
       `./tmp/${arxivId}/html/embeddings.json`,
-      JSON.stringify(weights)
+      JSON.stringify(index),
     );
 
     progressWorker?.postProgress({

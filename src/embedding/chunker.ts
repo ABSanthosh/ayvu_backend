@@ -59,15 +59,18 @@ export class Chunker {
       }
 
       let parentId: string | undefined;
-      if (hierarchy !== "section") {
-        const parentList = item.closest(".ltx_toclist");
-        const parentSection = parentList?.closest(
-          ".ltx_tocentry_section, .ltx_tocentry_subsection"
-        );
-        parentId = parentSection
-          ?.querySelector("a.ltx_ref")
-          ?.getAttribute("href")
-          ?.slice(1);
+      if (hierarchy === "subsection") {
+        // For subsections like "S1.SS1", parent is "S1"
+        const parts = id.split(".");
+        if (parts.length > 1) {
+          parentId = parts[0];
+        }
+      } else if (hierarchy === "subsubsection") {
+        // For subsubsections like "S1.SS1.SSS1", parent is "S1.SS1"
+        const parts = id.split(".");
+        if (parts.length > 2) {
+          parentId = parts.slice(0, 2).join(".");
+        }
       }
 
       toc.push({ id, title, hierarchy, parentId });
@@ -150,10 +153,22 @@ export class Chunker {
   private chunkText(text: string, maxChars: number, overlap: number): string[] {
     const chunks: string[] = [];
     let start = 0;
+    
+    // Ensure we make progress even with small chunk sizes
+    const step = Math.max(1, maxChars - overlap);
+    
     while (start < text.length) {
       const end = Math.min(text.length, start + maxChars);
-      chunks.push(text.slice(start, end));
-      start += maxChars - overlap;
+      const chunk = text.slice(start, end);
+      if (chunk.length > 0) {
+        chunks.push(chunk);
+      }
+      start += step;
+      
+      // Safety check to prevent infinite loops
+      if (step <= 0 || chunks.length > 10000) {
+        break;
+      }
     }
     return chunks;
   }
