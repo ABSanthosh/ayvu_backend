@@ -1,3 +1,5 @@
 /tmp
 node_modules
 coverage
+
+models/onnx-community/embeddinggemma-300m-ONNX/onnx/model.onnx_data
